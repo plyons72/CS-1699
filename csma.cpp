@@ -8,35 +8,74 @@
 
 using namespace std;
 
-#define NUM_THREADS 8
-#define UNIT_TIME 100
-#define DATA_READY_CHECK_MULTIPLIER 240
-std::mutex csma_lock;
+/* Constant variables to be used throughout program execution */
 
-void call_from_thread(int tid)
+// Total number of threads we will use throughout the execution of the program
+static const int num_threads = 8;
+
+// The number to be used as our unit of time... The amount of time that a station will wait before it checks the medium
+static const int ts = 100;
+
+// To be used as a multiplier with ts to determine the amount of time that each station sleeps before checking the medium
+static const int td = 240 * ts;
+
+// To be used as a multiplier with ts to set the amount of time a device waits, once it detects the medium is not busy
+// Should only be used if the device has something to send
+static const int tdifs = 20 * ts;
+
+// Equal to W, where W is a random number [ts < W < 2Nts] where N is the number of wireless stations
+// All stations should be equal... In this case we set it equal to Nts
+static const int tcw = num_threads * ts;
+
+// Total time that a device will hold connection with the medium to send a packet.
+// Should be [.3td < tp < .6 td]
+static const int tp = .5 * td;
+
+// Time required for the medium to receive an ACK after sending a packet
+static const int tifs = 10 * ts;
+
+// Total number of packets each station should send
+static const int num_packets = 4;
+
+std::mutex medium_lock;
+
+void sleep_and_detect(int tid)
 {
     // Generates a random number between 1 and 100 to determine the percentage chance of having something to send
-    // To generate a truly random and not just pseudorandom numbers, we seed the rand function with the current Unix System time in main()
-    int probability = (rand() % 100)+ 1;
+    // This should be mobile device specific, and each will have a different one (ideally)
+    const int probability = (rand() % 100)+ 1;
+
+    // Total time taken for one cycle to process (device has data to send, waits to connect to medium, sends, gets ACK
+    // Print to file or to Standard I/O for review. Global to allow
+    int total_time;
+
     printf("\n\n\nLaunched by thread %d\n", tid);
     printf("Thread %d generated the number %d\n", tid, probability);
 }
 
+// If a device has something to send, and has waited a certain amount of time, we should send the data here.
+// @params are the thread(device) id and the total time thus far
+void send(int tid, int tot)
+{
+
+}
+
 int main(int argc, char *argv[])
 {
-    std::thread mobile[NUM_THREADS];
+    // Create the 8 mobile devices as individual threads
+    std::thread mobile[num_threads];
+
+    // Seed the rand function using current unix system time to give us truly random numbers when we call for them
     srand((int)time(0));
 
-    //Launch a group of threads
-    for (int i = 0; i < NUM_THREADS; ++i)
+    // Have the threads call the sleep_and_detect function
+    for (int i = 0; i < num_threads; ++i)
     {
-        mobile[i] = std::thread(call_from_thread, i);
+        mobile[i] = std::thread(sleep_and_detect, i);
     }
 
-     printf("Launched from the main\n");
-
-    //Join the threads with the main thread
-    for (int i = 0; i < NUM_THREADS; ++i)
+    // Join the threads back together before we exit
+    for (int i = 0; i < num_threads; ++i)
     {
         mobile[i].join();
     }
