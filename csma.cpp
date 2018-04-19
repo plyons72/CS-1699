@@ -6,51 +6,53 @@
 #include <cstdlib>
 #include <string>
 
+#include "csma.h"
+
 using namespace std;
 
 /* Constant variables to be used throughout program execution */
 
-static const int num_threads = 8;
-static const int ts = 300;
-static const int td = 240 * ts;
-static const int tdifs = 20 * ts;
-static const int tcw = num_threads * ts;
-static const int tp = .5 * td;
-static const int tifs = 10 * ts;
-static const int num_packets = 1;
+static const int m_numThreads = 8;
+static const int m_ts = 300;
+static const int m_td = 240 * m_ts;
+static const int m_tdifs = 20 * m_ts;
+static const int m_tp = .5 * m_td;
+static const int m_tifs = 10 * m_ts;
+static const int m_numPackets = 1;
 
-// Holds the status of the medium(available = true, unavailable = false)
-static bool medium_status = true;
 
 // Mutex for the process
 std::mutex medium_lock;
 
+// int random_number_generator(int n);
+// void sleep_and_detect(int tid);
+// void send_data(int tid, int tot);
+// bool set_status(bool status);
 
-void sleep_and_detect(int tid)
+void sleep_and_detect(int m_tid)
 {
-    // Generates a random number between 1 and 100 to determine the percentage chance of having something to send
-    // This should be mobile device specific, and each will have a different one (ideally)
+    // Generates a random number between 1 and 100 to determine the percentage chance that a device has something to send
+    // Each station should have the same probability
     const int probability = random_number_generator(100);
 
     // Total time taken for one cycle to process (device has data to send, waits to connect to medium, sends, gets ACK
     // Print to file or to Standard I/O for review. Global to allow
-    int total_time = 0;
-    int k;
+    int totalTime = 0;
+    int tcw = num_threads * ts;
+    int k = 1;
 
-    bool readyToSend;
-
-
+    bool readyToSend = false;
 
     if (readyToSend)
     {
         do
         {
             // If the medium is available
-            if(check_status)
+            if(check_status())
             {
                 // Sleep for tdifs
                 std::this_thread::sleep_for(std::chrono::milliseconds(tdifs));
-                total_time += tdifs;
+                totalTime += tdifs;
 
                 // Set k
                 k = 1;
@@ -60,31 +62,25 @@ void sleep_and_detect(int tid)
 
                 // Sleep for ts
                 std::this_thread::sleep_for(std::chrono::milliseconds(ts));
-                total_time += ts;
+                totalTime += ts;
 
                 // Decrement tcw by ts
                 tcw -= ts;
 
-                // Check medium again
-                if (check_status && tcw > 0)
+                // Check medium again... Make sure it's available
+                if (check_status() && tcw > 0)
                 {
 
                 }
-
-                set_status(tid, false);
-                send_data(tid, total_time);
-                set_status(tid, true);
             }
             else
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(ts));
-                total_time += ts;
+                totalTime += ts;
             }
 
         }while(num_packets > 0);
     }
-
-
 
 }
 
@@ -96,7 +92,7 @@ void send_data(int tid, int tot)
     medium_lock.lock();
 
     std::this_thread::sleep_for(std::chrono::milliseconds(ts));
-    total_time += ts;
+    totalTime += ts;
 
     // Unlock and leave
     medium_lock.unlock();
@@ -106,39 +102,33 @@ void send_data(int tid, int tot)
 //@return true if the medium is unlocked and available
 bool check_status()
 {
-    return medium_status;
+    return mediumStatus;
 }
 
-void set_status(int tid, bool status)
+void set_status(bool status)
 {
-    medium_status = status;
-}
-
-// Returns an int holding a random number between 1 and the number you pass to it (inclusive)
-int random_number_generator(int n)
-{
-    return (rand() % n + 1);
+    mediumStatus = status;
 }
 
 int main(int argc, char *argv[])
 {
-    // Create the 8 mobile devices as individual threads
-    std::thread mobile[num_threads];
+  // Create the 8 mobile devices as individual threads
+  std::thread mobile[num_threads];
 
-    // Seed the rand function using current unix system time to give us truly random numbers when we call for them
-    srand((int)time(0));
+  // Seed the rand function using current unix system time to give us truly random numbers when we call for them
+  srand((int)time(0));
 
-    // Have the threads call the sleep_and_detect function
-    for (int i = 0; i < num_threads; ++i)
-    {
-        mobile[i] = std::thread(sleep_and_detect, i);
-    }
+  // Have the threads call the sleep_and_detect function
+  for (int i = 0; i < num_threads; ++i)
+  {
+    mobile[i] = std::thread(sleep_and_detect, i);
+  }
 
-    // Join the threads back together to ensure they all finished
-    for (int i = 0; i < num_threads; ++i)
-    {
-        mobile[i].join();
-    }
+  // Join the threads back together before we exit
+  for (int i = 0; i < num_threads; ++i)
+  {
+    mobile[i].join();
+  }
 
-    return 0;
+  return 0;
 }
