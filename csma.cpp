@@ -8,17 +8,20 @@
 
 using namespace std;
 
-/* Constant variables to be used throughout program execution */
-static const int m_numThreads = 8;
-static const int m_ts = 5;
-static const int m_td = 240 * m_ts;
-static const int m_tdifs = 20 * m_ts;
-static const int m_tp = .5 * m_td;
-static const int m_tifs = 10 * m_ts;
+// Constant variables to be used throughout program execution
+static const int numThreads = 8;
+static const int ts = 5;
+static const int td = 240 * ts;
+static const int tdifs = 20 * ts;
+static const int tp = .5 * td;
+static const int tifs = 10 * ts;
 
+// Holds the status of the medium
+// True = Available
+// False = Unavailable
 static bool mediumStatus = true;
 
-// Mutex for the process
+// Mutex for the process to lock down access to the medium
 std::mutex medium_lock;
 
 // Generates a random number between 1 and n (inclusive)
@@ -62,7 +65,7 @@ void set_status(bool status, int deviceID)
 
 // If a device has something to send, and has waited a certain amount of time, we should send the data here.
 // @params are the thread(device) id and the total time thus far
-void send_data(int deviceID, int totalTime)
+void send_data(int deviceID, int& totalTime)
 {
     // Lock and set medium to busy
     medium_lock.lock();
@@ -72,12 +75,12 @@ void send_data(int deviceID, int totalTime)
     // printf("\n\nDevice %d is now sending data. %d milliseconds have elapsed so far\n", deviceID, totalTime);
 
     // Simulate time to send packet
-    std::this_thread::sleep_for(std::chrono::milliseconds(m_tp));
-    totalTime += m_tp;
+    std::this_thread::sleep_for(std::chrono::milliseconds(tp));
+    totalTime += tp;
 
     // Simulate time to receive ACK
-    std::this_thread::sleep_for(std::chrono::milliseconds(m_tifs));
-    totalTime += m_tifs;
+    std::this_thread::sleep_for(std::chrono::milliseconds(tifs));
+    totalTime += tifs;
 
     // Tracks when the device finishes data transfer
     //printf("Device %d is done sending data. %d milliseconds have elapsed so far\n", deviceID, totalTime);
@@ -95,9 +98,9 @@ void sleep_and_detect(int deviceID, int probabilityToSend)
     int totalTime = 0;
 
     // Set k to 1 for the first loop to calculate tcw correctly
-    int tcw = m_numThreads * m_ts;
+    int tcw = numThreads * ts;
     int k = 1;
-    int m_numPackets = 1;
+    int numPackets = 1;
 
     bool incrementFirstTdifs= true;
     bool readyToSend;
@@ -125,7 +128,7 @@ void sleep_and_detect(int deviceID, int probabilityToSend)
 
         if(!readyToSend)
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(m_td));
+            std::this_thread::sleep_for(std::chrono::milliseconds(td));
         }
 
     }while(!readyToSend);
@@ -141,8 +144,8 @@ void sleep_and_detect(int deviceID, int probabilityToSend)
             {
                 if (incrementFirstTdifs) {
                     // Sleep for tdifs immediately
-                    std::this_thread::sleep_for(std::chrono::milliseconds(m_tdifs));
-                    totalTime += m_tdifs;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(tdifs));
+                    totalTime += tdifs;
                 }
 
                 incrementFirstTdifs = false;
@@ -151,26 +154,26 @@ void sleep_and_detect(int deviceID, int probabilityToSend)
                 tcw *= k;
 
                 // Sleep for ts
-                std::this_thread::sleep_for(std::chrono::milliseconds(m_ts));
-                totalTime += m_ts;
+                std::this_thread::sleep_for(std::chrono::milliseconds(ts));
+                totalTime += ts;
 
                 // Decrement tcw by ts
-                tcw -= m_ts;
+                tcw -= ts;
 
                 // Check medium again... Make sure it's available
                 // Step 16, No
                 if (check_status() && tcw <= 0)
                 {
                     send_data(deviceID, totalTime);
-                    m_numPackets--;
+                    numPackets--;
                 }
 
                 // Step 16 if yes
                 else if (check_status() && tcw > 0)
                 {
                     // Sleep for ts
-                    std::this_thread::sleep_for(std::chrono::milliseconds(m_ts));
-                    totalTime += m_ts;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(ts));
+                    totalTime += ts;
                 }
 
                 // Medium is busy (Step 9 - no)
@@ -179,13 +182,13 @@ void sleep_and_detect(int deviceID, int probabilityToSend)
                     do
                     {
                         // Sleep for ts
-                        std::this_thread::sleep_for(std::chrono::milliseconds(m_ts));
-                        totalTime += m_ts;
+                        std::this_thread::sleep_for(std::chrono::milliseconds(ts));
+                        totalTime += ts;
                     }while(!check_status());
 
                     // Sleep for tdifs
-                    std::this_thread::sleep_for(std::chrono::milliseconds(m_tdifs));
-                    totalTime += m_tdifs;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(tdifs));
+                    totalTime += tdifs;
 
                     if (tcw <= 0)
                     {
@@ -197,11 +200,11 @@ void sleep_and_detect(int deviceID, int probabilityToSend)
             }
             else
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(m_ts));
-                totalTime += m_ts;
+                std::this_thread::sleep_for(std::chrono::milliseconds(ts));
+                totalTime += ts;
             }
 
-        }while(m_numPackets > 0);
+        }while(numPackets > 0);
     }
 
     print_results(deviceID, totalTime);
@@ -210,7 +213,7 @@ void sleep_and_detect(int deviceID, int probabilityToSend)
 int main(int argc, char *argv[])
 {
   // Create the 8 mobile devices as individual threads
-  std::thread mobile[m_numThreads];
+  std::thread mobile[numThreads];
 
   // Seed the rand function using current unix system time to give us truly random numbers when we call for them
   srand((int)time(0));
@@ -220,13 +223,13 @@ int main(int argc, char *argv[])
   const int probabilityToSend = random_number_generator(100);
 
   // Have the threads call the sleep_and_detect function
-  for (int i = 0; i < m_numThreads; ++i)
+  for (int i = 0; i < numThreads; ++i)
   {
     mobile[i] = std::thread(sleep_and_detect, i, probabilityToSend);
   }
 
   // Join the threads back together before we exit
-  for (int i = 0; i < m_numThreads; ++i)
+  for (int i = 0; i < numThreads; ++i)
   {
     mobile[i].join();
   }
