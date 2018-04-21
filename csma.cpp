@@ -6,8 +6,6 @@
 #include <cstdlib>
 #include <string>
 
-#include "csma.h"
-
 using namespace std;
 
 /* Constant variables to be used throughout program execution */
@@ -17,7 +15,6 @@ static const int m_td = 240 * m_ts;
 static const int m_tdifs = 20 * m_ts;
 static const int m_tp = .5 * m_td;
 static const int m_tifs = 10 * m_ts;
-static int m_numPackets = 1;
 
 static bool mediumStatus = true;
 
@@ -30,10 +27,10 @@ int random_number_generator(int n)
     return (rand() % n + 1);
 }
 
-// Prints everything to the screen
+// Prints finalized data to the screen
 void print_results(int deviceID, int totalTime)
 {
-    printf("\nDevice %d took %d milliseconds to send 1 packet\n", deviceID, totalTime);
+    printf("\nDevice %d took %d ms to send 1 packet\n", deviceID, totalTime);
 }
 
 // Checks the status of the medium
@@ -44,9 +41,23 @@ bool check_status()
 }
 
 // Simulates the sending of data from the device to the medium
-void set_status(bool status)
+void set_status(bool status, int deviceID)
 {
+
+// Just a way to track the statuses
+//    char * strStatus;
+//    if (status == 1)
+//    {
+//        strStatus = "True";
+//    }
+//    else
+//    {
+//        strStatus = "False";
+//    }
+//    printf("device %d set the medium status to %s", deviceID, strStatus);
+
     mediumStatus = status;
+
 }
 
 // If a device has something to send, and has waited a certain amount of time, we should send the data here.
@@ -55,9 +66,10 @@ void send_data(int deviceID, int totalTime)
 {
     // Lock and set medium to busy
     medium_lock.lock();
-    set_status(false);
+    set_status(false, deviceID);
 
-    printf("\n\nDevice %d is now sending data. %d time has elapsed so far\n", deviceID, totalTime);
+    // Tracks when a device begins sending data
+    // printf("\n\nDevice %d is now sending data. %d milliseconds have elapsed so far\n", deviceID, totalTime);
 
     // Simulate time to send packet
     std::this_thread::sleep_for(std::chrono::milliseconds(m_tp));
@@ -67,19 +79,17 @@ void send_data(int deviceID, int totalTime)
     std::this_thread::sleep_for(std::chrono::milliseconds(m_tifs));
     totalTime += m_tifs;
 
-    printf("Device %d is done sending data. %d time has elapsed so far\n", deviceID, totalTime);
+    // Tracks when the device finishes data transfer
+    //printf("Device %d is done sending data. %d milliseconds have elapsed so far\n", deviceID, totalTime);
+
     // Unlock and leave
-    set_status(true);
+    set_status(true, deviceID);
     medium_lock.unlock();
 }
 
 // Cycles the devices through the process of sleeping and checking whether it's ok to try to send data
-void sleep_and_detect(int deviceID)
+void sleep_and_detect(int deviceID, int probabilityToSend)
 {
-    // Generates a random number between 1 and 100 to determine the percentage chance that a device has something to send
-    // Each station should have the same probability
-    const int probabilityToSend = random_number_generator(100);
-
     // Total time taken for one cycle to process (device has data to send, waits to connect to medium, sends, gets ACK
     // Print to file or to Standard I/O for review. Global to allow
     int totalTime = 0;
@@ -87,6 +97,7 @@ void sleep_and_detect(int deviceID)
     // Set k to 1 for the first loop to calculate tcw correctly
     int tcw = m_numThreads * m_ts;
     int k = 1;
+    int m_numPackets = 1;
 
     bool incrementFirstTdifs= true;
     bool readyToSend;
@@ -97,8 +108,20 @@ void sleep_and_detect(int deviceID)
     // Phases 1 and 2
     do {
 
-        if (random_number_generator(100) <= probabilityToSend){ readyToSend = true; }
-        else { readyToSend = false; }
+        int chanceToSend = random_number_generator(100);
+        if (chanceToSend <= probabilityToSend)
+        {
+            readyToSend = true;
+
+            // Simple print statement to track when a device begins to send data
+            // printf("\n\nDevice %d is ready to send. Chance to send is %d and original probability is %d", deviceID, chanceToSend, probabilityToSend);
+
+        }
+        else
+        {
+            readyToSend = false;
+            // printf("\n\nDevice %d is NOT ready to send. Chance to send is %d and original probability is %d", deviceID, chanceToSend, probabilityToSend);
+        }
 
         if(!readyToSend)
         {
@@ -181,6 +204,7 @@ void sleep_and_detect(int deviceID)
         }while(m_numPackets > 0);
     }
 
+    print_results(deviceID, totalTime);
 }
 
 int main(int argc, char *argv[])
@@ -191,10 +215,14 @@ int main(int argc, char *argv[])
   // Seed the rand function using current unix system time to give us truly random numbers when we call for them
   srand((int)time(0));
 
+  // Generates a random number between 1 and 100 to determine the percentage chance that a device has something to send
+  // Each station should have the same probability
+  const int probabilityToSend = random_number_generator(100);
+
   // Have the threads call the sleep_and_detect function
   for (int i = 0; i < m_numThreads; ++i)
   {
-    mobile[i] = std::thread(sleep_and_detect, i);
+    mobile[i] = std::thread(sleep_and_detect, i, probabilityToSend);
   }
 
   // Join the threads back together before we exit
