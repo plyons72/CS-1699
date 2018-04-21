@@ -44,7 +44,7 @@ bool check_status()
 }
 
 // Simulates the sending of data from the device to the medium
-void set_status(bool status, int deviceID)
+void set_status(bool status)
 {
 
 // Just a way to track the statuses
@@ -69,7 +69,7 @@ void send_data(int deviceID, int& totalTime)
 {
     // Lock and set medium to busy
     medium_lock.lock();
-    set_status(false, deviceID);
+    set_status(false);
 
     // Tracks when a device begins sending data
     // printf("\n\nDevice %d is now sending data. %d milliseconds have elapsed so far\n", deviceID, totalTime);
@@ -86,7 +86,7 @@ void send_data(int deviceID, int& totalTime)
     //printf("Device %d is done sending data. %d milliseconds have elapsed so far\n", deviceID, totalTime);
 
     // Unlock and leave
-    set_status(true, deviceID);
+    set_status(true);
     medium_lock.unlock();
 }
 
