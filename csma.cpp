@@ -25,43 +25,17 @@ static bool mediumStatus = true;
 std::mutex medium_lock;
 
 // Generates a random number between 1 and n (inclusive)
-int random_number_generator(int n)
-{
-    return (rand() % n + 1);
-}
+int random_number_generator(int n) { return (rand() % n + 1); }
 
 // Prints finalized data to the screen
-void print_results(int deviceID, int totalTime)
-{
-    printf("\nDevice %d took %d ms to send 1 packet\n", deviceID, totalTime);
-}
+void print_results(int deviceID, int totalTime) { printf("\nDevice %d took %d ms to send 1 packet\n", deviceID, totalTime); }
 
 // Checks the status of the medium
 //@return true if the medium is unlocked and available
-bool check_status()
-{
-    return mediumStatus;
-}
+bool check_status() { return mediumStatus; }
 
 // Simulates the sending of data from the device to the medium
-void set_status(bool status)
-{
-
-// Just a way to track the statuses
-//    char * strStatus;
-//    if (status == 1)
-//    {
-//        strStatus = "True";
-//    }
-//    else
-//    {
-//        strStatus = "False";
-//    }
-//    printf("device %d set the medium status to %s", deviceID, strStatus);
-
-    mediumStatus = status;
-
-}
+void set_status(bool status) { mediumStatus = status; }
 
 // If a device has something to send, and has waited a certain amount of time, we should send the data here.
 // @params are the thread(device) id and the total time thus far
@@ -100,7 +74,7 @@ void sleep_and_detect(int deviceID, int probabilityToSend)
     // Set k to 1 for the first loop to calculate tcw correctly
     int tcw = numThreads * ts;
     int k = 1;
-    int numPackets = 1;
+    int numPackets = 5;
 
     bool incrementFirstTdifs= true;
     bool readyToSend;
@@ -109,103 +83,90 @@ void sleep_and_detect(int deviceID, int probabilityToSend)
     // If so, break the loop and begin querying the medium
     // Else, sleep for td and go again
     // Phases 1 and 2
-    do {
+    do
+    {
 
         int chanceToSend = random_number_generator(100);
-        if (chanceToSend <= probabilityToSend)
-        {
-            readyToSend = true;
 
-            // Simple print statement to track when a device begins to send data
-            // printf("\n\nDevice %d is ready to send. Chance to send is %d and original probability is %d", deviceID, chanceToSend, probabilityToSend);
+        if (chanceToSend <= probabilityToSend) { readyToSend = true; }
+        else { readyToSend = false; }
 
-        }
-        else
-        {
-            readyToSend = false;
-            // printf("\n\nDevice %d is NOT ready to send. Chance to send is %d and original probability is %d", deviceID, chanceToSend, probabilityToSend);
-        }
-
-        if(!readyToSend)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(td));
-        }
+        if(!readyToSend) { std::this_thread::sleep_for(std::chrono::milliseconds(td)); }
 
     }while(!readyToSend);
 
     // Query the medium and attempt to send data
     // Phases 3 4
-    if (readyToSend)
+    do
     {
-        do
+        // If the medium is available
+        if(check_status())
         {
-            // If the medium is available
-            if(check_status())
+            if (incrementFirstTdifs) {
+                // Sleep for tdifs immediately
+                std::this_thread::sleep_for(std::chrono::milliseconds(tdifs));
+                totalTime += tdifs;
+            }
+
+            // Just ensures that we don't constantly hit what's contained in stage 6 on the chart
+            incrementFirstTdifs = false;
+
+            // Set tcw based on k
+            tcw *= k;
+
+            // Sleep for ts
+            std::this_thread::sleep_for(std::chrono::milliseconds(ts));
+            totalTime += ts;
+
+            // Decrement tcw by ts
+            tcw -= ts;
+
+            // Check medium again... Make sure it's available
+            // Step 16, No
+            if (check_status() && tcw <= 0)
             {
-                if (incrementFirstTdifs) {
-                    // Sleep for tdifs immediately
-                    std::this_thread::sleep_for(std::chrono::milliseconds(tdifs));
-                    totalTime += tdifs;
-                }
+                send_data(deviceID, totalTime);
+                numPackets--;
+                printf("\nDevice %d sent packet number %d", deviceID, numPackets);
+            }
 
-                incrementFirstTdifs = false;
-
-                // Set tcw based on k
-                tcw *= k;
-
+            // Step 16 if yes
+            else if (check_status() && tcw > 0)
+            {
                 // Sleep for ts
                 std::this_thread::sleep_for(std::chrono::milliseconds(ts));
                 totalTime += ts;
+            }
 
-                // Decrement tcw by ts
-                tcw -= ts;
-
-                // Check medium again... Make sure it's available
-                // Step 16, No
-                if (check_status() && tcw <= 0)
-                {
-                    send_data(deviceID, totalTime);
-                    numPackets--;
-                }
-
-                // Step 16 if yes
-                else if (check_status() && tcw > 0)
+            // Medium is busy (Step 9 - no)
+            else
+            {
+                do
                 {
                     // Sleep for ts
                     std::this_thread::sleep_for(std::chrono::milliseconds(ts));
                     totalTime += ts;
-                }
+                }while(!check_status());
 
-                // Medium is busy (Step 9 - no)
-                else
+                // Sleep for tdifs
+                std::this_thread::sleep_for(std::chrono::milliseconds(tdifs));
+                totalTime += tdifs;
+
+                if (tcw <= 0)
                 {
-                    do
-                    {
-                        // Sleep for ts
-                        std::this_thread::sleep_for(std::chrono::milliseconds(ts));
-                        totalTime += ts;
-                    }while(!check_status());
-
-                    // Sleep for tdifs
-                    std::this_thread::sleep_for(std::chrono::milliseconds(tdifs));
-                    totalTime += tdifs;
-
-                    if (tcw <= 0)
-                    {
-                        k *= 2;
-                        if (k > 16){ k = 16; }
-                    }
-
+                    k *= 2;
+                    if (k > 16){ k = 16; }
                 }
-            }
-            else
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(ts));
-                totalTime += ts;
-            }
 
-        }while(numPackets > 0);
-    }
+            }
+        }
+        else
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(ts));
+            totalTime += ts;
+        }
+
+    }while(numPackets > 0);
 
     print_results(deviceID, totalTime);
 }
@@ -222,6 +183,7 @@ int main(int argc, char *argv[])
   // Each station should have the same probability
   const int probabilityToSend = random_number_generator(100);
 
+  printf("\nThe chance that the devices have data to send at any given time is %d%% \n\n", probabilityToSend);
   // Have the threads call the sleep_and_detect function
   for (int i = 0; i < numThreads; ++i)
   {

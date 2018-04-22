@@ -1,0 +1,27 @@
+
+The chance that the devices have data to send at any given time is 81% 
+
+
+Device 5 sent packet number 0
+Device 5 took 825 ms to send 1 packet
+
+Device 3 sent packet number 0
+Device 3 took 825 ms to send 1 packet
+
+Device 6 sent packet number 0
+Device 6 took 1920 ms to send 1 packet
+
+Device 7 sent packet number 0
+Device 7 took 2520 ms to send 1 packet
+
+Device 0 sent packet number 0
+Device 0 took 3185 ms to send 1 packet
+
+Device 1 sent packet number 0
+Device 1 took 3855 ms to send 1 packet
+
+Device 2 sent packet number 0
+Device 2 took 3865 ms to send 1 packet
+
+Device 4 sent packet number 0
+Device 4 took 3855 ms to send 1 packet
